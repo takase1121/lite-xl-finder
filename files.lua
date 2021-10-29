@@ -77,12 +77,12 @@ local function files_cmd()
 end
 
 local function files_internal()
-  coroutine.wrap(function()
+  return coroutine.wrap(function()
     local continue = true
     for _, dir in ipairs(core.project_directories) do
       for _, file in ipairs(dir.files) do
-        print(file.filename)
-        _, _, continue = coroutine.yield(false, file.filename)
+        local filename = dir.name .. file.filename
+        _, _, continue = coroutine.yield(false, filename)
         if not continue then break end
       end
       if not continue then break end
@@ -91,10 +91,10 @@ local function files_internal()
 end
 
 local function files_source()
-  if config.plugins.finder.files.command then
-    return files_cmd()
-  else
+  if config.plugins.finder.internal then
     return files_internal()
+  else
+    return files_cmd()
   end
 end
 
