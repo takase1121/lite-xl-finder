@@ -133,7 +133,7 @@ function FuzzyBox:each_visible_item()
 end
 
 function FuzzyBox:on_mouse_pressed(button, px, py, clicks)
-  local caught = FuzzyBox.super.on_mouse_pressed(self, button, px, py, clicks)
+  if FuzzyBox.super.on_mouse_pressed(self, button, px, py, clicks) then return end
   if button == "left" and clicks == 1 then
     for i, _, x, y, w, h in self:each_visible_item() do
       if px >= x and py >= y and px < x + w and py < y + h then
