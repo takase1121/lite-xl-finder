@@ -17,7 +17,10 @@ local files_source = require "plugins.finder.files"
 config.plugins.finder = {
   size = { w = 0.8, h = 0.8 },
   delay = 0.04,
-  files = { command = { "find", "%CWD", "-type", "f" } }
+  files = {
+    internal = true,
+    command = { "find", "%CWD", "-type", "f" },
+  }
 }
 
 local finder_overlay = Notebook()
@@ -98,7 +101,6 @@ command.add(nil, {
     end
   end,
   ["finder:close-overlay"] = function()
-    print("here")
     if finder_overlay.visible then
       finder_overlay:hide()
     end
