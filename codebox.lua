@@ -32,12 +32,11 @@ function CodeBox:set_text(text, select)
   end
 end
 
-function CodeBox:set_doc(filename)
-  if filename then
-    local d = core.open_doc(filename)
-    self.textview = DocView(d)
+function CodeBox:set_doc(doc)
+  if doc then
+    self.textview = DocView(doc)
   else
-    self.textviewview = nil
+    self.textview = nil
   end
 end
 

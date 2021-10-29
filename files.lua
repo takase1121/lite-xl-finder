@@ -1,6 +1,7 @@
 local process = require "process"
 
 local core = require "core"
+local common = require "core.common"
 local config = require "core.config"
 
 local function replace_placeholders(tbl, cwd)
@@ -98,4 +99,16 @@ local function files_source()
   end
 end
 
-return files_source
+local function files_preview(filename)
+  return core.open_doc(filename)
+end
+
+local function files_action(value)
+  print("open", value)
+end
+
+return {
+  source = files_source,
+  preview = files_preview,
+  action = files_action
+}

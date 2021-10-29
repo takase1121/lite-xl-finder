@@ -31,10 +31,12 @@ function FuzzyBox:new(parent, src, src_file)
   core.add_thread(function()
     while true do
       if #self.resort_req > 0 then
-        local needle = table.remove(self.resort_req, 1)
+        local req = table.remove(self.resort_req, 1)
+        local needle, on_progress = req.needle, req.on_progress
         self.sorted = {}
         self.status.indexing = true
         self.status.indexed = 0
+        on_progress(self.status, #self.sorted, self.status.indexed)
 
         local iter, inv, last = src()
         while true do
@@ -64,14 +66,18 @@ function FuzzyBox:new(parent, src, src_file)
         end
         table.sort(self.sorted, compare_score)
         self.status.indexing = false
+        on_progress(self.sorted, #self.sorted, self.status.indexed)
       end
       coroutine.yield(1 / config.fps)
     end
   end, self)
 end
 
-function FuzzyBox:resort(needle)
-  self.resort_req[#self.resort_req + 1] = needle
+function FuzzyBox:resort(needle, on_progress)
+  self.resort_req[#self.resort_req + 1] = {
+    needle = needle,
+    on_progress = on_progress
+  }
 end
 
 function FuzzyBox:cancel_resort()
@@ -137,8 +143,14 @@ function FuzzyBox:on_mouse_pressed(button, px, py, clicks)
     end
   end
   if button == "left" and clicks >= 2 and self.selected then
-    -- TODO: do something
+    self:on_selected(self.sorted[self.selected].data, self.selected)
   end
+end
+
+function FuzzyBox:on_selected(selected, i)
+end
+
+function FuzzyBox:on_selected_update(selected, i)
 end
 
 function FuzzyBox:update()
@@ -150,14 +162,19 @@ function FuzzyBox:update()
     self.lines = {}
   end
 
+  local last_selected = self.selected
   if not self.status.indexing then
     if not self.selected then
       self.selected = #self.sorted
     end
-
+    self.scroll.y = self:get_scrollable_size() - self.size.y
     local min_line, max_line = self:get_visible_line_range()
     self.selected = common.clamp(self.selected, min_line, max_line)
-    self.scroll.y = self:get_scrollable_size() - self.size.y
+    self.selected = math.max(self.selected, #self.sorted)
+  end
+
+  if self.selected ~= last_selected and self.sorted[self.selected] then
+    self:on_selected_update(self.sorted[self.selected].data, self.selected)
   end
 end
 

@@ -13,6 +13,7 @@ local TextBox = require "plugins.finder.textbox"
 local CodeBox = require "plugins.finder.codebox"
 local FuzzyBox = require "plugins.finder.fuzzybox"
 local files_source = require "plugins.finder.files"
+local docs_source = require "plugins.finder.docs"
 
 config.plugins.finder = {
   size = { w = 0.8, h = 0.8 },
@@ -41,7 +42,7 @@ local docs = finder_overlay:add_pane("docs", "Find Docs")
 
 local function create_ui(pane, source, file)
   local code = CodeBox(pane, false)
-  local list = FuzzyBox(pane, source, file)
+  local list = FuzzyBox(pane, source.source, file)
   local input = TextBox(pane, "", "Find...")
   local status = Label(pane, "-")
 
@@ -66,6 +67,19 @@ local function create_ui(pane, source, file)
     code:set_position(list:get_right() + style.padding.x, y)
   end
 
+  local list_on_selected_update = list.on_selected_update
+  function list:on_selected_update(selected, i)
+    list_on_selected_update(selected, i)
+    local doc = source.preview(selected, i)
+    code:set_doc(doc)
+  end
+
+  local list_on_selected = list.on_selected
+  function list:on_selected(selected, i)
+    list_on_selected(self, selected, i)
+    source.action(selected, i)
+  end
+
   local last_doc_change, done = system.get_time(), false
   local on_doc_change = input.on_doc_change
   function input:on_doc_change(...)
@@ -74,22 +88,27 @@ local function create_ui(pane, source, file)
     done = false
   end
 
+  local function on_progress(sort_status, sorted, indexed)
+    local str = string.format("%d/%d file(s)", sorted, indexed)
+    if sort_status.indexing then
+      str = str .. "..."
+    end
+    status:set_label(str)
+  end
+
   local input_update = input.update
   function input:update()
     input_update(self)
     local time = system.get_time()
     if not done and time - last_doc_change > config.plugins.finder.delay then
       done = true
-      list:resort(self:get_text())
-
-      status:set_label(string.format("%d/%d file(s) %s", #list.sorted, list.status.indexed, list.status.indexing and "and going..." or ""))
-      local current = list.sorted[#list.sorted]
-      code:set_doc(current and current.filename or nil)
+      list:resort(self:get_text(), on_progress)
     end
   end
 end
 
 create_ui(files, files_source, true)
+create_ui(docs, docs_source, true)
 
 
 command.add(nil, {
