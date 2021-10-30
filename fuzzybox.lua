@@ -67,6 +67,9 @@ function FuzzyBox:new(parent, src, src_file)
         table.sort(self.sorted, compare_score)
         self.status.indexing = false
         on_progress(self.sorted, #self.sorted, self.status.indexed)
+        if not self.selected then
+          self:set_selected(#self.sorted)
+        end
         self:scroll_to(self:get_scrollable_size(), true)
       end
       coroutine.yield(1 / config.fps)
@@ -141,17 +144,37 @@ function FuzzyBox:scroll_to(y, instant)
   end
 end
 
-function FuzzyBox:on_mouse_pressed(button, px, py, clicks)
-  if FuzzyBox.super.on_mouse_pressed(self, button, px, py, clicks) then return end
-  if button == "left" and clicks == 1 then
-    for i, _, x, y, w, h in self:each_visible_item() do
-      if px >= x and py >= y and px < x + w and py < y + h then
-        self.selected = i
-        return
-      end
+function FuzzyBox:set_selected(idx, diff)
+  local selection = self.selected or 0
+  if diff then
+    selection = selection + diff
+  else
+    selection = idx
+  end
+
+  local min_line, max_line = self:get_visible_line_range()
+  selection = common.clamp(selection, min_line, max_line)
+
+  if self.selected ~= selection and self.sorted[selection] then
+    self:on_selected_update(self.sorted[selection].data, selection)
+  end
+
+  self.selected = selection
+end
+
+function FuzzyBox:on_mouse_moved(px, py, dx, dy)
+  FuzzyBox.super.on_mouse_moved(self, px, py, dx, dy)
+  for i, _, x, y, w, h in self:each_visible_item() do
+    if px >= x and py >= y and px < x + w and py < y + h then
+      self:set_selected(i)
+      return
     end
   end
-  if button == "left" and clicks >= 2 and self.selected then
+end
+
+function FuzzyBox:on_click(button, x, y)
+  FuzzyBox.super.on_click(self, button, x, y)
+  if button == "left" and self.sorted[self.selected] then
     self:on_selected(self.sorted[self.selected].data, self.selected)
   end
 end
@@ -171,19 +194,10 @@ function FuzzyBox:update()
     self.lines = {}
   end
 
-  local last_selected = self.selected
   if not self.status.indexing then
     if not self.selected then
-      self.selected = #self.sorted
+      self:set_selected(#self.sorted)
     end
-    self.scroll.y = self:get_scrollable_size() - self.size.y
-    local min_line, max_line = self:get_visible_line_range()
-    self.selected = common.clamp(self.selected, min_line, max_line)
-    self.selected = math.max(self.selected, #self.sorted)
-  end
-
-  if self.selected ~= last_selected and self.sorted[self.selected] then
-    self:on_selected_update(self.sorted[self.selected].data, self.selected)
   end
 end
 
