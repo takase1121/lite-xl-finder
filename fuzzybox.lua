@@ -67,6 +67,7 @@ function FuzzyBox:new(parent, src, src_file)
         table.sort(self.sorted, compare_score)
         self.status.indexing = false
         on_progress(self.sorted, #self.sorted, self.status.indexed)
+        self:scroll_to(self:get_scrollable_size(), true)
       end
       coroutine.yield(1 / config.fps)
     end
@@ -130,6 +131,14 @@ function FuzzyBox:each_visible_item()
       end
     end
   end)
+end
+
+function FuzzyBox:scroll_to(y, instant)
+  self.scroll.to.y = y
+  self:clamp_scroll_position()
+  if instant then
+    self.scroll.y = self.scroll.to.y
+  end
 end
 
 function FuzzyBox:on_mouse_pressed(button, px, py, clicks)
