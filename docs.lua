@@ -22,6 +22,7 @@ local function docs_preview(value)
 end
 
 local function docs_action(value)
+  core.root_view:open_doc(docs[value])
 end
 
 return {

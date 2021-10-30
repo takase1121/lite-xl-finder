@@ -103,8 +103,8 @@ local function files_preview(filename)
   return core.open_doc(filename)
 end
 
-local function files_action(value)
-  print("open", value)
+local function files_action(filename)
+  core.root_view:open_doc(core.open_doc(filename))
 end
 
 return {
