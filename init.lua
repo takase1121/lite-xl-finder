@@ -77,6 +77,7 @@ local function create_ui(pane, source, file)
   local list_on_selected = list.on_selected
   function list:on_selected(selected, i)
     list_on_selected(self, selected, i)
+    finder_overlay:hide()
     source.action(selected, i)
   end
 
