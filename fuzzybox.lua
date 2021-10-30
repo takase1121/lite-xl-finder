@@ -7,9 +7,14 @@ local style = require "core.style"
 
 local Widget = require "widget"
 
+local function noop()
+end
+
 local function compare_score(a, b)
   return a.score < b.score
 end
+
+local MERGE_WINDOW = 0.4
 
 local FuzzyBox = Widget:extend()
 
@@ -36,37 +41,41 @@ function FuzzyBox:new(parent, src, src_file)
         self.sorted = {}
         self.status.indexing = true
         self.status.indexed = 0
-        on_progress(self.status, #self.sorted, self.status.indexed)
 
         local iter, inv, last = src()
-        while true do
-          if self.status.force_stop then
-            pcall(iter, inv, last, false)
-            break
-          end
-
-          local ok, yield, value = pcall(iter, inv, last, true)
-          last = yield
+        while not self.status.force_stop do
+          local ok, should_yield, value = pcall(iter, inv, last, not self.status.force_stop)
+          last = should_yield
           if not ok then
-            core.error("[ffzf] source failed: %s", yield)
+            core.error("[finder] source failed: %s", should_yield)
             break
           end
 
-          if yield then
+          if self.status.indexed % 100 == 0 then
+            local ok, msg = pcall(on_progress, self.status, #self.sorted, self.status.indexed)
+            if not ok then
+              core.error("[finder] progress callback errored: %s", ok, msg)
+              break
+            end
+          end
+
+          if should_yield == true then
             coroutine.yield()
-          elseif yield == false then
+          elseif should_yield == false then
             self.status.indexed = self.status.indexed + 1
             local score = system.fuzzy_match(value, needle, src_file)
             if score then
               self.sorted[#self.sorted + 1] = { data = value, score = score }
             end
-          else
+          elseif should_yield == nil then
             break
           end
         end
+
         table.sort(self.sorted, compare_score)
         self.status.indexing = false
-        on_progress(self.sorted, #self.sorted, self.status.indexed)
+        on_progress(self.status, #self.sorted, self.status.indexed)
+
         if not self.selected then
           self:set_selected(#self.sorted)
         end
@@ -75,12 +84,14 @@ function FuzzyBox:new(parent, src, src_file)
       coroutine.yield(1 / config.fps)
     end
   end, self)
+
+  self:resort("")
 end
 
 function FuzzyBox:resort(needle, on_progress)
   self.resort_req[#self.resort_req + 1] = {
     needle = needle,
-    on_progress = on_progress
+    on_progress = on_progress or noop,
   }
 end
 
@@ -160,6 +171,7 @@ function FuzzyBox:set_selected(idx, diff)
   end
 
   self.selected = selection
+  core.redraw = true
 end
 
 function FuzzyBox:on_mouse_moved(px, py, dx, dy)
