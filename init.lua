@@ -40,9 +40,9 @@ end
 local files = finder_overlay:add_pane("files", "Find Files")
 local docs = finder_overlay:add_pane("docs", "Find Docs")
 
-local function create_ui(pane, source, file)
+local function create_ui(pane, source)
   local code = CodeBox(pane, false)
-  local list = FuzzyBox(pane, source.source, file)
+  local list = FuzzyBox(pane, source.source)
   local input = TextBox(pane, "", "Find...")
   local status = Label(pane, "-")
 
@@ -89,27 +89,19 @@ local function create_ui(pane, source, file)
     done = false
   end
 
-  local function on_progress(sort_status, sorted, indexed)
-    local str = string.format("%d/%d file(s)", sorted, indexed)
-    if sort_status.indexing then
-      str = str .. "..."
-    end
-    status:set_label(str)
-  end
-
   local input_update = input.update
   function input:update()
     input_update(self)
     local time = system.get_time()
     if not done and time - last_doc_change > config.plugins.finder.delay then
-      done = true
-      list:resort(self:get_text(), on_progress)
+      local match, indexed = list:resort(self:get_text())
+      status:set_label(string.format("%d/%d file(s)", match, indexed))
     end
   end
 end
 
-create_ui(files, files_source, true)
-create_ui(docs, docs_source, true)
+create_ui(files, files_source)
+create_ui(docs, docs_source)
 
 
 command.add(nil, {

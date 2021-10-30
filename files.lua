@@ -77,38 +77,34 @@ local function files_cmd()
   end)
 end
 
-local function files_internal()
-  return coroutine.wrap(function()
-    local continue = true
-    for _, dir in ipairs(core.project_directories) do
-      for _, file in ipairs(dir.files) do
-        local filename = dir.name .. file.filename
-        _, _, continue = coroutine.yield(false, filename)
-        if not continue then break end
-      end
-      if not continue then break end
+local function file_iter(tbl, last)
+  last = last + 1
+  if last > #tbl then return end
+  for i = last, #tbl do
+    if tbl[i] and tbl[i].type == "file" then
+      return i, tbl[i]
     end
-  end)
-end
-
-local function files_source()
-  if config.plugins.finder.internal then
-    return files_internal()
-  else
-    return files_cmd()
   end
 end
 
-local function files_preview(filename)
-  return core.open_doc(filename)
+local files_internal = {
+  data = function()
+    return file_iter, core.project_files, 0
+  end,
+  getter = function(value) return value.filename end,
+  is_file = true
+}
+
+local function files_preview(file)
+  return core.open_doc(file.filename)
 end
 
-local function files_action(filename)
-  core.root_view:open_doc(core.open_doc(filename))
+local function files_action(file)
+  core.root_view:open_doc(core.open_doc(file.filename))
 end
 
 return {
-  source = files_source,
+  source = files_internal,
   preview = files_preview,
   action = files_action
 }

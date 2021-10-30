@@ -14,15 +14,17 @@ local function compare_score(a, b)
   return a.score < b.score
 end
 
-local MERGE_WINDOW = 0.4
+local function default_getter(value)
+  return value
+end
 
 local FuzzyBox = Widget:extend()
 
-function FuzzyBox:new(parent, src, src_file)
+function FuzzyBox:new(parent, source)
   FuzzyBox.super.new(self, parent)
   self.sorted = {}
-  self.status = { indexing = false, indexed = 0, force_stop = false }
-  self.resort_req = {}
+  self.source = source
+  self.source.getter = self.source.getter or default_getter
   self.border.width = 0
   self.font = style.code_font
 
@@ -33,71 +35,27 @@ function FuzzyBox:new(parent, src, src_file)
   self.scrollable = true
 
   self:set_size(200, 200)
-  core.add_thread(function()
-    while true do
-      if #self.resort_req > 0 then
-        local req = table.remove(self.resort_req, 1)
-        local needle, on_progress = req.needle, req.on_progress
-        self.sorted = {}
-        self.status.indexing = true
-        self.status.indexed = 0
-
-        local iter, inv, last = src()
-        while not self.status.force_stop do
-          local ok, should_yield, value = pcall(iter, inv, last, not self.status.force_stop)
-          last = should_yield
-          if not ok then
-            core.error("[finder] source failed: %s", should_yield)
-            break
-          end
-
-          if self.status.indexed % 100 == 0 then
-            local ok, msg = pcall(on_progress, self.status, #self.sorted, self.status.indexed)
-            if not ok then
-              core.error("[finder] progress callback errored: %s", ok, msg)
-              break
-            end
-          end
-
-          if should_yield == true then
-            coroutine.yield()
-          elseif should_yield == false then
-            self.status.indexed = self.status.indexed + 1
-            local score = system.fuzzy_match(value, needle, src_file)
-            if score then
-              self.sorted[#self.sorted + 1] = { data = value, score = score }
-            end
-          elseif should_yield == nil then
-            break
-          end
-        end
-
-        table.sort(self.sorted, compare_score)
-        self.status.indexing = false
-        on_progress(self.status, #self.sorted, self.status.indexed)
-
-        if not self.selected then
-          self:set_selected(#self.sorted)
-        end
-        self:scroll_to(self:get_scrollable_size(), true)
-      end
-      coroutine.yield(1 / config.fps)
-    end
-  end, self)
-
   self:resort("")
 end
 
-function FuzzyBox:resort(needle, on_progress)
-  self.resort_req[#self.resort_req + 1] = {
-    needle = needle,
-    on_progress = on_progress or noop,
-  }
-end
+function FuzzyBox:resort(needle)
+  self.sorted = {}
+  local indexed = 0
+  local score
+  for _, value in self.source.data() do
+    indexed = indexed + 1
+    score = system.fuzzy_match(self.source.getter(value), needle, self.source.is_file)
+    if score then
+      self.sorted[#self.sorted+1] = { data = value, score = score }
+    end
+  end
+  table.sort(self.sorted, compare_score)
+  if not self.selected then
+    self:set_selected(#self.sorted)
+  end
+  self:scroll_to(self:get_scrollable_size())
 
-function FuzzyBox:cancel_resort()
-  self.resort_req = {}
-  self.status.force_stop = true
+  return #self.sorted, indexed
 end
 
 function FuzzyBox:get_scrollable_size()
@@ -137,7 +95,7 @@ function FuzzyBox:each_visible_item()
     local lww = math.max(0, w - self.font:get_width("..."))
     for i = max_line, min_line, -1 do
       oy = oy - h
-      local s = common.home_encode(self.sorted[i].data)
+      local s = self.source.getter(self.sorted[i].data)
       if self.font:get_width(s) > w then
         coroutine.yield(i, "..." .. self:accurate_left_wrap(s, lww), ox, oy, w, h)
       else
@@ -204,12 +162,6 @@ function FuzzyBox:update()
     self.last_size.y = self.size.y
 
     self.lines = {}
-  end
-
-  if not self.status.indexing then
-    if not self.selected then
-      self:set_selected(#self.sorted)
-    end
   end
 end
 
